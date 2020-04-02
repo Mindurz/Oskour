@@ -24,11 +24,16 @@
 #include <motors_control.h>
 #include <move.h>
 
+#include <chprintf.h>
+
+#include <pi_regulator.h>
+#include <process_image.h>
+//modiff
+
 messagebus_t bus;
 MUTEX_DECL(bus_lock);
 CONDVAR_DECL(bus_condvar);
 
-//coucou je me tire
 void SendUint8ToComputer(uint8_t* data, uint16_t size) 
 {
 	chSequentialStreamWrite((BaseSequentialStream *)&SD3, (uint8_t*)"START", 5);
