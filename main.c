@@ -15,7 +15,7 @@
 
 #include <pi_regulator.h>
 #include <process_image.h>
-
+//coucou je me tire
 void SendUint8ToComputer(uint8_t* data, uint16_t size) 
 {
 	chSequentialStreamWrite((BaseSequentialStream *)&SD3, (uint8_t*)"START", 5);
