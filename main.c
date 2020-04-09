@@ -10,15 +10,19 @@
 #include "memory_protection.h"
 #include "sensors/proximity.h"
 #include <communication.h>
+#include "spi_comm.h"
 
 #include <usbcfg.h>
 #include <main.h>
 #include <motors.h>
+#include <leds.h>
 #include <camera/po8030.h>
+#include <audio/play_melody.h>
 
 //#include <pi_regulator.h>
 //#include <process_image.h>
-#include "move.h"
+#include <motors_control.h>
+#include <move.h>
 
 messagebus_t bus;
 MUTEX_DECL(bus_lock);
@@ -70,11 +74,14 @@ int main(void)
 //	process_image_start();
 	navigation_start();
 
+//	playMelodyStart();
+
     /* Infinite loop. */
     while (1) {
     	//waits 1 second
-        chThdSleepMilliseconds(5000);
-        //chprintf((BaseSequentialStream *)&SDU1, "coucouc\n");
+        //chThdSleepMilliseconds(5000);
+    	//playMelody(2, 0, 0);
+
     }
 }
 

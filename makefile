@@ -13,6 +13,7 @@ CSRC += ./main.c \
 		./pi_regulator.c \
 		./process_image.c \
 		./move.c \
+		./motors_control.c \
 
 #Header folders to include
 INCDIR += 
