@@ -18,6 +18,7 @@
 #include <leds.h>
 #include <camera/po8030.h>
 #include <audio/play_melody.h>
+#include <audio/audio_thread.h>
 
 //#include <pi_regulator.h>
 //#include <process_image.h>
@@ -62,6 +63,9 @@ int main(void)
     //start the USB communication
     usb_start();
 
+    dac_start();
+
+
     // for rgb led use
     spi_comm_start();
 
@@ -79,8 +83,8 @@ int main(void)
     /* Infinite loop. */
     while (1) {
     	//waits 1 second
-        //chThdSleepMilliseconds(5000);
-    	//playMelody(2, 0, 0);
+        chThdSleepMilliseconds(5000);
+//    	playMelody(2,0,0);
 
     }
 }
