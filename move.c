@@ -20,12 +20,15 @@
 #define RIGHT_FRONT_49_IR_SENSOR 1
 
 #define PROXIMITY_THRESHOLD_SIDES 150 // ??cm
-#define PROXIMITY_THRESHOLD_FRONT 100
+#define PROXIMITY_THRESHOLD_FRONT 400
 
-#define NB_STEP_QUARTER_TURN   325
-
+#define NB_STEP_QUARTER_TURN   300
+#define NB_STEP_U_TURN   650
 static uint8_t current_state = MOVING ;
 
+#define SMALL_CORRECTION 0.7
+#define MEDIUM_CORRECTION 0.5
+#define BIG_CORRECTION 0.3
 /**/
 
 static THD_WORKING_AREA(waNavigation, 1024);
@@ -34,53 +37,51 @@ static THD_FUNCTION(Navigation, arg) {
 	chRegSetThreadName(__FUNCTION__);
 	(void)arg;
 
-//	systime_t time;
-
 	while(1){
 		// Pour initialisation plus fiable
-		chThdSleepMilliseconds(300);
+//		chThdSleepMilliseconds(300);
 		float proximity_read_left = get_prox(LEFT_IR_SENSOR);
 		float proximity_read_right = get_prox(RIGHT_IR_SENSOR);
 		float proximity_read_left_front_49 = get_prox(LEFT_FRONT_49_IR_SENSOR);
 		float proximity_read_right_front_49 = get_prox(RIGHT_FRONT_49_IR_SENSOR);
 		float proximity_read_left_front_17 = get_prox(LEFT_FRONT_17_IR_SENSOR);
 		float proximity_read_right_front_17 = get_prox(RIGHT_FRONT_17_IR_SENSOR);
-//		chprintf((BaseSequentialStream *)&SD3, "Niktoi");
-//		chprintf((BaseSequentialStream *)&SDU1, "Right = %lf \n", proximity_read_right);
-		uint8_t red_val = RGB_MAX_INTENSITY/10;
-		uint8_t green_val = RGB_MAX_INTENSITY/10;
-		uint8_t	blue_val = RGB_MAX_INTENSITY;
+		chprintf((BaseSequentialStream *)&SD3, "Right = %lf \n", proximity_read_right_front_17);
+		chprintf((BaseSequentialStream *)&SD3, "Left = %lf \n", proximity_read_left_front_17);
+//		uint8_t red_val = RGB_MAX_INTENSITY/10;
+//		uint8_t green_val = RGB_MAX_INTENSITY/10;
+//		uint8_t	blue_val = RGB_MAX_INTENSITY;
 
-		if(proximity_read_left > PROXIMITY_THRESHOLD_FRONT) {
-			set_rgb_led(2,red_val, green_val, blue_val);
-		}else{
-			set_rgb_led(2, 0, 0, 0);
-		}
-		if(proximity_read_right > PROXIMITY_THRESHOLD_FRONT) {
-			set_rgb_led(1,red_val, green_val, blue_val);
-		}else{
-			set_rgb_led(1, 0, 0, 0);
-		}
-		if(proximity_read_left_front_49 > PROXIMITY_THRESHOLD_FRONT) {
-			set_led(3, 2);
-		}else{
-			set_led(3, 0);
-		}
-		if(proximity_read_right_front_49 > PROXIMITY_THRESHOLD_FRONT) {
-			set_led(1, 2);
-		}else{
-			set_led(1, 0);
-		}
-		if(proximity_read_left_front_17 > PROXIMITY_THRESHOLD_FRONT) {
-			set_rgb_led(3,red_val, green_val, blue_val);
-		}else{
-			set_rgb_led(3, 0, 0, 0);
-		}
-		if(proximity_read_right_front_17 > PROXIMITY_THRESHOLD_FRONT) {
-			set_rgb_led(0,red_val, green_val, blue_val);
-		}else{
-			set_rgb_led(0, 0, 0, 0);
-		}
+//		if(proximity_read_left > PROXIMITY_THRESHOLD_FRONT) {
+//			set_rgb_led(2,red_val, green_val, blue_val);
+//		}else{
+//			set_rgb_led(2, 0, 0, 0);
+//		}
+//		if(proximity_read_right > PROXIMITY_THRESHOLD_FRONT) {
+//			set_rgb_led(1,red_val, green_val, blue_val);
+//		}else{
+//			set_rgb_led(1, 0, 0, 0);
+//		}
+//		if(proximity_read_left_front_49 > PROXIMITY_THRESHOLD_FRONT) {
+//			set_led(3, 2);
+//		}else{
+//			set_led(3, 0);
+//		}
+//		if(proximity_read_right_front_49 > PROXIMITY_THRESHOLD_FRONT) {
+//			set_led(1, 2);
+//		}else{
+//			set_led(1, 0);
+//		}
+//		if(proximity_read_left_front_17 > PROXIMITY_THRESHOLD_FRONT) {
+//			set_rgb_led(3,red_val, green_val, blue_val);
+//		}else{
+//			set_rgb_led(3, 0, 0, 0);
+//		}
+//		if(proximity_read_right_front_17 > PROXIMITY_THRESHOLD_FRONT) {
+//			set_rgb_led(0,red_val, green_val, blue_val);
+//		}else{
+//			set_rgb_led(0, 0, 0, 0);
+//		}
 
 
 
@@ -89,17 +90,20 @@ static THD_FUNCTION(Navigation, arg) {
 			case WAITING:
 				if(is_wall_on_right(proximity_read_right)){
 					if(is_wall_on_left(proximity_read_left)){
-						motors_set_position(2*NB_STEP_QUARTER_TURN, 2*NB_STEP_QUARTER_TURN, -NORMAL_SPEED, NORMAL_SPEED);
+						motors_set_position(NB_STEP_U_TURN, NB_STEP_U_TURN, -TURN_SPEED, TURN_SPEED);
 						current_state = TURNING;
+						chThdYield();
 					}else{
-						motors_set_position(NB_STEP_QUARTER_TURN, NB_STEP_QUARTER_TURN, NORMAL_SPEED, -NORMAL_SPEED);
+						motors_set_position(NB_STEP_QUARTER_TURN, NB_STEP_QUARTER_TURN, TURN_SPEED, -TURN_SPEED);
 						current_state = TURNING;
+						chThdYield();
 					}
 				}else if(is_wall_on_left(proximity_read_left)) {
-						motors_set_position(NB_STEP_QUARTER_TURN, NB_STEP_QUARTER_TURN, -NORMAL_SPEED, NORMAL_SPEED);
+						motors_set_position(NB_STEP_QUARTER_TURN, NB_STEP_QUARTER_TURN, -TURN_SPEED, TURN_SPEED);
 						current_state = TURNING;
+						chThdYield();
 					}
-				//chprintf((BaseSequentialStream *)&SD3, "Niktoi \n");
+
 				break;
 
 			case MOVING:
@@ -107,10 +111,9 @@ static THD_FUNCTION(Navigation, arg) {
 					motors_stop();
 					current_state = WAITING ;
 				}else{
-					left_motor_set_speed(NORMAL_SPEED);
-					right_motor_set_speed(NORMAL_SPEED);
+					left_motor_set_speed(trajectory_correction(proximity_read_right_front_49)*NORMAL_SPEED);
+					right_motor_set_speed(trajectory_correction(proximity_read_left_front_49)*NORMAL_SPEED);
 				}
-				//chprintf((BaseSequentialStream *)&SD3, "Pute \n");
 				break;
 
 			case TURNING:
@@ -120,10 +123,10 @@ static THD_FUNCTION(Navigation, arg) {
 					right_motor_set_speed(NORMAL_SPEED);
 					current_state = MOVING;
 				}
-				//chprintf((BaseSequentialStream *)&SD3, "Suce \n");
 				break;
 
 		}
+
 	}
 }
 
@@ -137,6 +140,20 @@ uint8_t is_wall_on_right(float read) {
 
 uint8_t is_wall_on_left(float read) {
 	return (read > PROXIMITY_THRESHOLD_FRONT);
+}
+
+float trajectory_correction(float read) {
+
+	if(read > 300 && read > 400){
+		return SMALL_CORRECTION;
+	}
+	if(read > 400 && read < 500){
+		return MEDIUM_CORRECTION;
+	}
+	if(read > 500){
+		return BIG_CORRECTION;
+	}
+	return 1.0;
 }
 
 

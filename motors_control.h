@@ -6,6 +6,7 @@
 #include <hal.h>
 
 #define NORMAL_SPEED 600
+#define TURN_SPEED 400
 
 enum positions {POSITION_NOT_REACHED, POSITION_REACHED };
 

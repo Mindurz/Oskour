@@ -21,7 +21,7 @@
 #include <audio/audio_thread.h>
 
 //#include <pi_regulator.h>
-//#include <process_image.h>
+#include <process_image.h>
 #include <motors_control.h>
 #include <move.h>
 
@@ -65,6 +65,9 @@ int main(void)
 
     dac_start();
 
+    //starts the camera
+//    dcmi_start();
+//    po8030_start();
 
     // for rgb led use
     spi_comm_start();
@@ -82,10 +85,10 @@ int main(void)
 
     /* Infinite loop. */
     while (1) {
-    	//waits 1 second
-        chThdSleepMilliseconds(5000);
-//    	playMelody(2,0,0);
 
+    	//waits 1 second
+        chThdSleepMilliseconds(10000000);
+//    	playMelody(2,0,0);
     }
 }
 
