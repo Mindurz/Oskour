@@ -21,10 +21,12 @@
 
 #define PROXIMITY_THRESHOLD_SIDES 150 // ??cm
 #define PROXIMITY_THRESHOLD_FRONT 400
+#define PROXIMITY_OPEN_THRESHOLD 100
 
-#define NB_STEP_QUARTER_TURN   300
+#define NB_STEP_QUARTER_TURN   320
 #define NB_STEP_U_TURN   650
 static uint8_t current_state = MOVING ;
+static uint8_t free_to_turn = 1 ;
 
 #define SMALL_CORRECTION 0.7
 #define MEDIUM_CORRECTION 0.5
@@ -46,8 +48,8 @@ static THD_FUNCTION(Navigation, arg) {
 		float proximity_read_right_front_49 = get_prox(RIGHT_FRONT_49_IR_SENSOR);
 		float proximity_read_left_front_17 = get_prox(LEFT_FRONT_17_IR_SENSOR);
 		float proximity_read_right_front_17 = get_prox(RIGHT_FRONT_17_IR_SENSOR);
-		chprintf((BaseSequentialStream *)&SD3, "Right = %lf \n", proximity_read_right_front_17);
-		chprintf((BaseSequentialStream *)&SD3, "Left = %lf \n", proximity_read_left_front_17);
+//		chprintf((BaseSequentialStream *)&SD3, "Right = %lf \n", proximity_read_right_front_17);
+//		chprintf((BaseSequentialStream *)&SD3, "Left = %lf \n", proximity_read_left_front_17);
 //		uint8_t red_val = RGB_MAX_INTENSITY/10;
 //		uint8_t green_val = RGB_MAX_INTENSITY/10;
 //		uint8_t	blue_val = RGB_MAX_INTENSITY;
@@ -88,31 +90,42 @@ static THD_FUNCTION(Navigation, arg) {
 		switch(current_state){
 
 			case WAITING:
-				if(is_wall_on_right(proximity_read_right)){
-					if(is_wall_on_left(proximity_read_left)){
-						motors_set_position(NB_STEP_U_TURN, NB_STEP_U_TURN, -TURN_SPEED, TURN_SPEED);
-						current_state = TURNING;
-						chThdYield();
-					}else{
-						motors_set_position(NB_STEP_QUARTER_TURN, NB_STEP_QUARTER_TURN, TURN_SPEED, -TURN_SPEED);
-						current_state = TURNING;
-						chThdYield();
-					}
-				}else if(is_wall_on_left(proximity_read_left)) {
-						motors_set_position(NB_STEP_QUARTER_TURN, NB_STEP_QUARTER_TURN, -TURN_SPEED, TURN_SPEED);
-						current_state = TURNING;
-						chThdYield();
-					}
-
+				if(is_path_open(proximity_read_right)){
+					motors_set_position(NB_STEP_QUARTER_TURN, NB_STEP_QUARTER_TURN, -TURN_SPEED, TURN_SPEED);
+					current_state = TURNING;
+					chThdYield();
+					free_to_turn = 0;
+				}else if(is_path_open(proximity_read_left)) {
+					motors_set_position(NB_STEP_QUARTER_TURN, NB_STEP_QUARTER_TURN, TURN_SPEED, -TURN_SPEED);
+					current_state = TURNING;
+					chThdYield();
+					free_to_turn = 0;
+				}else{
+					motors_set_position(NB_STEP_U_TURN, NB_STEP_U_TURN, -TURN_SPEED, TURN_SPEED);
+					current_state = TURNING;
+					chThdYield();
+				}
 				break;
 
 			case MOVING:
-				if(is_wall_in_front(proximity_read_left_front_17, proximity_read_right_front_17) && (current_state == MOVING)) {
+				if(is_wall(proximity_read_left_front_17) && is_wall(proximity_read_right_front_17)) {
+
 					motors_stop();
 					current_state = WAITING ;
+
+				}else if(is_path_open(proximity_read_right) && free_to_turn){
+
+				current_state = WAITING ;
+				chThdSleepMilliseconds(400);
+
 				}else{
+
 					left_motor_set_speed(trajectory_correction(proximity_read_right_front_49)*NORMAL_SPEED);
 					right_motor_set_speed(trajectory_correction(proximity_read_left_front_49)*NORMAL_SPEED);
+
+				}
+				if(!free_to_turn && !is_path_open(proximity_read_right)) {
+								free_to_turn = 1;
 				}
 				break;
 
@@ -130,17 +143,18 @@ static THD_FUNCTION(Navigation, arg) {
 	}
 }
 
-uint8_t is_wall_in_front(float left_read, float right_read) {
-	return ((left_read > PROXIMITY_THRESHOLD_FRONT) && (right_read > PROXIMITY_THRESHOLD_FRONT));
-}
+//uint8_t is_wall_in_front(float left_read, float right_read) {
+//	return ((left_read > PROXIMITY_THRESHOLD_FRONT) && (right_read > PROXIMITY_THRESHOLD_FRONT));
+//}
 
-uint8_t is_wall_on_right(float read) {
+uint8_t is_wall(float read) {
 	return (read > PROXIMITY_THRESHOLD_FRONT);
 }
 
-uint8_t is_wall_on_left(float read) {
-	return (read > PROXIMITY_THRESHOLD_FRONT);
+uint8_t is_path_open(float read) {
+	return (read < PROXIMITY_OPEN_THRESHOLD);
 }
+
 
 float trajectory_correction(float read) {
 
