@@ -12,9 +12,21 @@ enum state_t {
 	TURNING
 };
 
+enum moving_along_t {
+	X_POS = 0,
+	Y_POS,
+	X_NEG,
+	Y_NEG
+};
+
 void navigation_start(void);
-uint8_t is_wall_in_front(float left_read, float right_read);
-uint8_t is_wall_on_right(float read);
-uint8_t is_wall_on_left(float read);
+uint8_t is_wall(float read);
+uint8_t is_path_open(float read);
+float trajectory_correction(float read);
+uint8_t get_has_turned(void);
+void set_has_turned(uint8_t setter);
+void rotation_update(int rotation);
+void position_update(void);
+
 
 #endif /* CAMREG_EDGEGARD_H_ */
