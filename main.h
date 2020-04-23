@@ -11,7 +11,10 @@ extern "C" {
 
 
 //constants for the differents parts of the project
-#define IMAGE_BUFFER_SIZE		640
+#define ROTATION_THRESHOLD        10
+#define ROTATION_COEFF            2
+#define PXTOCM                    1570.0f //experimental value
+
 
 /** Robot wide IPC bus. */
 extern messagebus_t bus;

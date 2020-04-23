@@ -9,6 +9,7 @@
 
 #include "memory_protection.h"
 #include "sensors/proximity.h"
+#include <sensors/VL53L0X/VL53L0X.h>
 #include <communication.h>
 #include "spi_comm.h"
 
@@ -29,24 +30,24 @@ messagebus_t bus;
 MUTEX_DECL(bus_lock);
 CONDVAR_DECL(bus_condvar);
 
-//coucou je me tire
-void SendUint8ToComputer(uint8_t* data, uint16_t size) 
+
+void SendUint8ToComputer(uint8_t* data, uint16_t size)
 {
-	chSequentialStreamWrite((BaseSequentialStream *)&SD3, (uint8_t*)"START", 5);
-	chSequentialStreamWrite((BaseSequentialStream *)&SD3, (uint8_t*)&size, sizeof(uint16_t));
-	chSequentialStreamWrite((BaseSequentialStream *)&SD3, (uint8_t*)data, size);
+    chSequentialStreamWrite((BaseSequentialStream *)&SD3, (uint8_t*)"START", 5);
+    chSequentialStreamWrite((BaseSequentialStream *)&SD3, (uint8_t*)&size, sizeof(uint16_t));
+    chSequentialStreamWrite((BaseSequentialStream *)&SD3, (uint8_t*)data, size);
 }
 
 static void serial_start(void)
 {
-	static SerialConfig ser_cfg = {
-	    115200,
-	    0,
-	    0,
-	    0,
-	};
+    static SerialConfig ser_cfg = {
+        115200,
+        0,
+        0,
+        0,
+    };
 
-	sdStart(&SD3, &ser_cfg); // UART3.
+    sdStart(&SD3, &ser_cfg); // UART3.
 }
 
 int main(void)
@@ -65,30 +66,34 @@ int main(void)
 
     dac_start();
 
+    // starts the time of flight sensor
+    VL53L0X_start();
+
     //starts the camera
-//    dcmi_start();
-//    po8030_start();
+    dcmi_start();
+    po8030_start();
 
     // for rgb led use
     spi_comm_start();
 
-	//inits the motors
-	motors_init();
-	proximity_start();
+    //inits the motors
+    motors_init();
+    proximity_start();
 
-	//stars the threads for the pi regulator and the processing of the image
-//	pi_regulator_start();
-//	process_image_start();
-	navigation_start();
+    //stars the threads for the pi regulator and the processing of the image
 
-//	playMelodyStart();
+    process_image_start();
+    navigation_start();
+
+//    playMelodyStart();
 
     /* Infinite loop. */
     while (1) {
 
-    	//waits 1 second
-        chThdSleepMilliseconds(10000000);
-//    	playMelody(2,0,0);
+//        waits 1 second
+        chThdSleepMilliseconds(1000);
+//        distance = VL53L0X_get_dist_mm();
+//        chprintf((BaseSequentialStream *)&SD3, "dist = %lf \n", distance);
     }
 }
 
