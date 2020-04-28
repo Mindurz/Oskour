@@ -8,9 +8,11 @@
 
 enum state_t {
 	MOVING = 0,
-	WAITING,
+	WALL_IN_FRONT,
 	TURNING,
-	STARTING
+	STARTING,
+	JUNCTION,
+	FINISH
 };
 
 enum moving_along_t {
@@ -21,13 +23,15 @@ enum moving_along_t {
 };
 
 void navigation_start(void);
+void proximity_measure(uint8_t nb_iteration);
 uint8_t is_wall(float read);
 uint8_t is_path_open(float read);
-float trajectory_correction(float read);
+float trajectory_correction(float read_right, float read_right_49, float read_left, float read_left_49);
 uint8_t get_has_turned(void);
 void set_has_turned(uint8_t setter);
 void rotation_update(int rotation);
-void position_update(void);
+void position_update(int offset_right, int offset_left);
+uint8_t get_state(void);
 void switch_state(uint8_t new_state);
 
 
