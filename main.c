@@ -4,7 +4,6 @@
 #include <math.h>
 
 #include "ch.h"
-#include <chprintf.h>
 #include "hal.h"
 
 #include "memory_protection.h"
@@ -13,19 +12,15 @@
 #include <communication.h>
 #include "spi_comm.h"
 
-#include <usbcfg.h>
 #include <main.h>
 #include <motors.h>
 #include <leds.h>
 #include <camera/po8030.h>
 #include <audio/play_melody.h>
-#include <audio/audio_thread.h>
 
-//#include <pi_regulator.h>
 #include <process_image.h>
 #include <motors_control.h>
 #include <move.h>
-#include <start.h>
 
 messagebus_t bus;
 MUTEX_DECL(bus_lock);
@@ -62,10 +57,6 @@ int main(void)
 
     //starts the serial communication
     serial_start();
-    //start the USB communication
-    usb_start();
-
-    dac_start();
 
     // starts the time of flight sensor
     VL53L0X_start();
@@ -93,8 +84,6 @@ int main(void)
 
 //    	waits 1 second
     	chThdSleepMilliseconds(1000);
-//    	distance = VL53L0X_get_dist_mm();
-//    	chprintf((BaseSequentialStream *)&SD3, "dist = %lf \n", distance);
     }
 }
 

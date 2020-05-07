@@ -1,9 +1,9 @@
 #include "ch.h"
 #include "hal.h"
-#include <chprintf.h>
-#include <usbcfg.h>
+#include <math.h>
 
 #include <motors_control.h>
+
 #include <sensors/proximity.h>
 #include <motors.h>
 #include "leds.h"
@@ -12,7 +12,6 @@
 #include <process_image.h>
 #include <audio/play_melody.h>
 
-//#define NB_PROX_SENSORS 8 a taej si sa marche sans
 #define LEFT_IR_SENSOR 5
 #define RIGHT_IR_SENSOR 2
 #define RIGHT_FRONT_17_IR_SENSOR 0
@@ -25,13 +24,20 @@
 
 #define NB_STEP_QUARTER_TURN   320
 #define NB_STEP_U_TURN   650
-#define NB_STEP_OPENING 250 //le robot avance de 3.25cm avant de s'engager dans une ouverture sur sa droite
+#define NB_STEP_OPENING 250 //The robot advances 3.25cm when it sees an opening on its right
 
-#define LEFT_PROX_OFFSET 20 // Egalise les valeurs entre capteur gauche et droite pour la correction de trajectoire (moyenne approximative)
+#define LEFT_PROX_OFFSET 20 // Equalize the values of the left sensor for the trajectory correction (moyenne approximative)
 #define KP 0.02
-#define DRIFT_CORRECTION 0.1 //Considération de 10% de steps en trop dans dans toute ligne droite
+#define KP_WEIGHT_49 2
+#define KP_WEIGHT_SIDE 0.5
 
 #define ASCII_VALUE_OF_1 49
+
+#define DRIFT_CORRECTION 0.1 //Estimation that there will 10% more steps on every straight line
+#define ODOMETRY_MARGIN 150 //margin to detect if the robot is back at the starting point.
+#define STEP_TO_LEGO 0.00866 // 0.013/1.5
+
+#define FINISH_MESSAGE_KEY 64
 
 static uint8_t current_state = STARTING ;
 static uint8_t cmd = 0;
@@ -43,6 +49,9 @@ static int16_t step_before_turn_left = 0;
 static int16_t current_xpos = 0;
 static int16_t current_ypos = 0;
 
+static uint8_t finished = 0;
+static uint8_t tango_offset= 0;
+
 static float proximity_read_left = 0;
 static float proximity_read_right = 0;
 static float proximity_read_left_front_49 = 0;
@@ -50,7 +59,14 @@ static float proximity_read_right_front_49 = 0;
 static float proximity_read_left_front_17 = 0;
 static float proximity_read_right_front_17 =0;
 
-uint8_t has_turned = 1; //variable permettant de ne pas prendre plusieurs photos du même mur
+uint8_t has_turned = 1; //variable to not take two pictures of the same wall
+
+/*
+ * Those variables ensure that the robot will not turn right after a turn.
+ * They allow to check if the robot has crossed the detected opening.
+ * Note that those applies only if the robot tries to turn at a point
+ * where there is no wall in front of it.
+ */
 static uint8_t wall_on_right = 0 ;
 static uint8_t free_to_turn = 0 ;
 
@@ -64,7 +80,8 @@ static THD_FUNCTION(Navigation, arg) {
 
 	while(1){
 
-//mesure des capteurs de proximité
+		time = chVTGetSystemTime();
+//measure of the proximity sensors
 		proximity_read_left = 0;
 		proximity_read_right = 0;
 		proximity_read_left_front_49 = 0;
@@ -73,45 +90,37 @@ static THD_FUNCTION(Navigation, arg) {
 		proximity_read_right_front_17 =0;
 		proximity_measure(5);
 
-		uint8_t red_val = RGB_MAX_INTENSITY/10;
-		uint8_t green_val = RGB_MAX_INTENSITY;
-		uint8_t	blue_val = RGB_MAX_INTENSITY/10;
-
-		time = chVTGetSystemTime();
-
-/*MACHINE D'ETATS
- * Le robot suit la règle de la main droite, i.e il tourne à droite à chaque fois qu'il peut  */
-
+/*FINITE STATE MACHINE
+ * The e-puck will use the right-hand method, it turns right every time it can */
 		switch(current_state){
 
 			case WALL_IN_FRONT:
+
+				position_update(step_before_turn_right,step_before_turn_left);
+
 				if(is_path_open(proximity_read_right)){
-					position_update(0,0);
-					rotation_update(1);
-					motors_set_position(NB_STEP_QUARTER_TURN, NB_STEP_QUARTER_TURN, -TURN_SPEED, TURN_SPEED);
-					current_state = TURNING;
-					free_to_turn = 0;
+					rotation_update(RIGHT_TURN);
+					motors_set_target(NB_STEP_QUARTER_TURN, NB_STEP_QUARTER_TURN, -TURN_SPEED, TURN_SPEED);
 
 				}else if(is_path_open(proximity_read_left)) {
-					position_update(0,0);
-					rotation_update(-1);
-					motors_set_position(NB_STEP_QUARTER_TURN, NB_STEP_QUARTER_TURN, TURN_SPEED, -TURN_SPEED);
-					current_state = TURNING;
-					free_to_turn = 0;
+					rotation_update(LEFT_TURN);
+					motors_set_target(NB_STEP_QUARTER_TURN, NB_STEP_QUARTER_TURN, TURN_SPEED, -TURN_SPEED);
+
 				}else{
-					position_update(0,0);
-					rotation_update(2);
-					motors_set_position(NB_STEP_U_TURN, NB_STEP_U_TURN, -TURN_SPEED, TURN_SPEED);
-					current_state = TURNING;
-					free_to_turn = 0;
+					rotation_update(U_TURN);
+					motors_set_target(NB_STEP_U_TURN, NB_STEP_U_TURN, -TURN_SPEED, TURN_SPEED);
 				}
+				current_state = TURNING;
+				free_to_turn = 0;
 				break;
 
 			case MOVING:
+
 				if(nb_step_start_line_right == 0 && nb_step_start_line_left == 0){
 					nb_step_start_line_right = right_motor_get_pos() ;
 					nb_step_start_line_left = left_motor_get_pos();
 				}
+
 				if(is_wall(proximity_read_left_front_17) && is_wall(proximity_read_right_front_17)) {
 					motors_stop();
 					current_state = WALL_IN_FRONT ;
@@ -120,7 +129,7 @@ static THD_FUNCTION(Navigation, arg) {
 
 					step_before_turn_right = right_motor_get_pos() ;
 					step_before_turn_left = left_motor_get_pos();
-					motors_set_position(NB_STEP_OPENING, NB_STEP_OPENING, NORMAL_SPEED, NORMAL_SPEED);
+					motors_set_target(NB_STEP_OPENING, NB_STEP_OPENING, NORMAL_SPEED, NORMAL_SPEED);
 					current_state = JUNCTION ;
 					free_to_turn = 0;
 					wall_on_right = 0;
@@ -131,12 +140,10 @@ static THD_FUNCTION(Navigation, arg) {
 					left_motor_set_speed(NORMAL_SPEED + correction);
 				}
 				if(!free_to_turn) {
-					if(!is_path_open(proximity_read_right))	{
-						set_rgb_led(3,red_val, green_val, blue_val);
+					if(is_wall(proximity_read_right))	{
 						wall_on_right = 1;
 					}
 					if(wall_on_right && is_path_open(proximity_read_right)) {
-						set_rgb_led(2,red_val, green_val, blue_val);
 						free_to_turn = 1;
 						wall_on_right = 0;
 					}
@@ -144,8 +151,10 @@ static THD_FUNCTION(Navigation, arg) {
 				break;
 
 			case TURNING:
+
 				motors_update_target_reached();
-				if(motors_get_reached() == 1) {
+
+				if(motors_is_target_reached() == 1) {
 					left_motor_set_speed(NORMAL_SPEED);
 					right_motor_set_speed(NORMAL_SPEED);
 					has_turned = 1 ;
@@ -153,40 +162,52 @@ static THD_FUNCTION(Navigation, arg) {
 					nb_step_start_line_left = 0;
 					current_state = MOVING;
 				}
-				if(abs(current_xpos) < 100 && abs(current_ypos) < 100) {
+
+				if(abs(current_xpos) < ODOMETRY_MARGIN && abs(current_ypos) < ODOMETRY_MARGIN) {
 					current_state = FINISH;
 				}
 				break;
 
 			case JUNCTION:
+
 				motors_update_target_reached();
-				if(motors_get_reached() == 1) {
+
+				if(motors_is_target_reached() == 1) {
 					position_update(step_before_turn_right,step_before_turn_left);
+					step_before_turn_right = 0;
+					step_before_turn_left = 0;
 					rotation_update(1);
-					motors_set_position(NB_STEP_QUARTER_TURN, NB_STEP_QUARTER_TURN, -TURN_SPEED, TURN_SPEED);
+					motors_set_target(NB_STEP_QUARTER_TURN, NB_STEP_QUARTER_TURN, -TURN_SPEED, TURN_SPEED);
 					current_state = TURNING;
 				}
 				break;
 
 
 			case STARTING:
-	    		chSequentialStreamRead(&SD3, (uint8_t*) &cmd, 1);
-	    		chprintf((BaseSequentialStream *)&SD3, "Cmd = %i \n", cmd);
+
+				cmd = chSequentialStreamGet((BaseSequentialStream *) &SD3);
 	    		if(cmd == ASCII_VALUE_OF_1) {
-	    			switch_state(MOVING);
-	    			playMelody(7, 0, 0);
+	    			current_state = MOVING;
 	    		}
 				break;
 
 			case FINISH:
 
+				Vetterli_tango();
+				if(!finished) {
+					send_position_to_computer(0, 0, FINISH_MESSAGE_KEY,0,0);
+					finished = 1;
+				}
+				playMelody(2,0,0);
+				chThdSleepMilliseconds(500);
 				break;
 		}
+
 		chThdSleepUntilWindowed(time, time + MS2ST(10));
 	}
 }
 
-// afin d'avoir des mesures plus stables, il est possible de les moyenner sur le nombre souhaité
+//This function allow to take the mean of the wanted number of measurements in order to have more stable values*/
 void proximity_measure(uint8_t nb_iteration) {
 
 	for(int i = 0 ; i < nb_iteration ; i++) {
@@ -224,11 +245,11 @@ void set_has_turned(uint8_t setter) {
 float trajectory_correction(float read_right, float read_right_49, float read_left, float read_left_49) {
 
 	float error = 0;
-	error = ((0.5*read_left + 2*(read_left_49+LEFT_PROX_OFFSET)) - (0.5*read_right + 2*read_right_49));
+	error = ((KP_WEIGHT_SIDE*read_left + KP_WEIGHT_49*(read_left_49+LEFT_PROX_OFFSET)) - (KP_WEIGHT_SIDE*read_right + KP_WEIGHT_49*read_right_49));
 	return KP*error;
 }
 
-/*rotation takes -1,0,1,2 for values modulo could have been better but not sure if it handles negative values
+/*rotation takes -1,0,1,2 for values
 	-1 => 90 Turn to the left
 	0 => No turn
 	1 => 90 Turn to the right
@@ -249,9 +270,6 @@ void position_update(int offset_right, int offset_left){
 	int32_t delta_steps;
 	delta_steps = (abs(right_motor_get_pos() - nb_step_start_line_right + offset_right) + abs(left_motor_get_pos() -nb_step_start_line_left + offset_left))/2;
 	delta_steps -= DRIFT_CORRECTION*delta_steps;
-//	chprintf((BaseSequentialStream *)&SD3, "delta = %i \n", delta_steps);
-//	chprintf((BaseSequentialStream *)&SD3, "step start = %i \n", nb_step_start_line_right);
-//	chprintf((BaseSequentialStream *)&SD3, "step end = %i \n", right_motor_get_pos());
 	switch(current_direction){
 
 		case X_POS:
@@ -270,8 +288,16 @@ void position_update(int offset_right, int offset_left){
 			current_ypos -= delta_steps;
 			break;
 	}
-	chprintf((BaseSequentialStream *)&SD3, "X = %i \n", current_xpos);
-	chprintf((BaseSequentialStream *)&SD3, "Y = %i \n", current_ypos);
+	uint8_t sign_x = 0;
+	uint8_t sign_y = 0;
+	if(current_xpos < 0){
+		sign_x = 1;
+	}
+	if(current_ypos < 0){
+		sign_y = 1;
+	}
+	send_position_to_computer(abs(convert_position_to_duplo(current_xpos)), abs(convert_position_to_duplo(current_ypos)),get_nb_line(),sign_x,sign_y);
+	set_nb_line(0);
 }
 
 uint8_t get_state() {
@@ -282,10 +308,89 @@ void switch_state(uint8_t new_state) {
 	current_state = new_state;
 }
 
+int8_t convert_position_to_duplo(int16_t pos) {
+	return floor(STEP_TO_LEGO*pos);
+}
+
+void send_position_to_computer(uint8_t pos_x, uint8_t pos_y, uint8_t line, uint8_t sign_x, uint8_t sign_y) {
+	uint8_t data[] = {pos_x,pos_y,line,sign_x,sign_y};
+	int8_t size = sizeof(data);
+	SendUint8ToComputer(data, size);
+}
+
 /* Demarrage du thread */
 
 void navigation_start(void){
 	chThdCreateStatic(waNavigation, sizeof(waNavigation), NORMALPRIO, Navigation, NULL);
 }
 
+void Vetterli_tango(void){
 
+	if(!finished){
+		left_motor_set_speed(NORMAL_SPEED);
+		right_motor_set_speed(-NORMAL_SPEED);
+	}
+
+	for(uint8_t i= 0; i<NUM_RGB_LED; i++){
+		for(uint8_t j = 0; j<NUM_COLOR_LED;j++){
+			switch((i+tango_offset)%4){
+				case 0:
+					switch(j){
+						case 0:
+							toggle_rgb_led(i,j,RGB_MAX_INTENSITY);
+							break;
+						case 1:
+							toggle_rgb_led(i,j,RGB_MAX_INTENSITY/10);
+							break;
+						case 2:
+							toggle_rgb_led(i,j,RGB_MAX_INTENSITY);
+							break;
+					}
+					break;
+
+				case 1:
+					switch(j){
+						case 0:
+							toggle_rgb_led(i,j,RGB_MAX_INTENSITY/10);
+							break;
+						case 1:
+							toggle_rgb_led(i,j,RGB_MAX_INTENSITY);
+							break;
+						case 2:
+							toggle_rgb_led(i,j,RGB_MAX_INTENSITY/10);
+							break;
+					}
+					break;
+
+				case 2:
+					switch(j){
+						case 0:
+							toggle_rgb_led(i,j,RGB_MAX_INTENSITY/10);
+							break;
+						case 1:
+							toggle_rgb_led(i,j,RGB_MAX_INTENSITY);
+							break;
+						case 2:
+							toggle_rgb_led(i,j,RGB_MAX_INTENSITY);
+							break;
+					}
+					break;
+
+				case 3:
+					switch(j){
+						case 0:
+							toggle_rgb_led(i,j,RGB_MAX_INTENSITY);
+							break;
+						case 1:
+							toggle_rgb_led(i,j,RGB_MAX_INTENSITY);
+							break;
+						case 2:
+							toggle_rgb_led(i,j,RGB_MAX_INTENSITY/10);
+							break;
+					}
+					break;
+			}
+		}
+	}
+	tango_offset = tango_offset + 1;
+}

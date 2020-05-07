@@ -7,12 +7,9 @@
 #define WIDTH_SLOPE				5
 #define MIN_LINE_WIDTH			50
 
-void find_line(uint8_t *buffer);
-int get_decalage_pxl(void);
+uint8_t extract_nb_line(uint8_t *buffer);
 void process_image_start(void);
-uint8_t get_nbLine(void);
+uint8_t get_nb_line(void);
+void set_nb_line(uint8_t setter);
 
 #endif /* PROCESS_IMAGE_H */
-
-//left_motor_set_speed(LINEAR_SPEED - (2*get_prox_values()->delta[0] + get_prox_values()->delta[1])*LINEAR_SPEED/(IR_VAL_MAX*3));
-//right_motor_set_speed(LINEAR_SPEED - (2*get_prox_values()->delta[7] + get_prox_values()->delta[6])*LINEAR_SPEED/(IR_VAL_MAX*3));

@@ -1,10 +1,5 @@
 #ifndef MOVE_H_
 #define MOVE_H_
-#define PI 3.141592
-
-#define WHEEL_DISTANCE  	5.6f	//cm
-#define PERIMETER_EPUCK 	PI * WHEEL_DISTANCE
-#define ANGLE(angle) (PERIMETER_EPUCK*angle)/360
 
 enum state_t {
 	MOVING = 0,
@@ -22,6 +17,12 @@ enum moving_along_t {
 	Y_NEG
 };
 
+enum turn_type_t {
+	LEFT_TURN = -1,
+	RIGHT_TURN = 1,
+	U_TURN = 2
+};
+
 void navigation_start(void);
 void proximity_measure(uint8_t nb_iteration);
 uint8_t is_wall(float read);
@@ -32,7 +33,8 @@ void set_has_turned(uint8_t setter);
 void rotation_update(int rotation);
 void position_update(int offset_right, int offset_left);
 uint8_t get_state(void);
-void switch_state(uint8_t new_state);
-
+void send_position_to_computer(uint8_t pos_x, uint8_t pos_y,uint8_t line, uint8_t sign_x, uint8_t sign_y);
+int8_t convert_position_to_duplo(int16_t pos);
+void Vetterli_tango(void);
 
 #endif /* CAMREG_EDGEGARD_H_ */
